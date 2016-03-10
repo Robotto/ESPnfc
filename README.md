@@ -1,7 +1,7 @@
 # ESPnfc
 NodeMCU module (ESP8266) using a PN532 NFC chip to read tags and do a thing with UDP
 
-	Follow the install instructions for the PN532/NFC library [https://github.com/Seeed-Studio/PN532 here]
+	Follow the install instructions for the PN532/NFC library [here](https://github.com/Seeed-Studio/PN532)
 
     Connects to wifi and waits for an NFC tag with a specific UID. Sends a UDP packet if tag is found.
 
