@@ -12,6 +12,7 @@ To enable debug message, define DEBUG in PN532/PN532_debug.h, which is part of t
 Runs on an ESP8266 (nodeMCU v0.9) connected to an adafruit NFC (PN532) shield
 
 HW setup:
+
 | NFC     | NodeMCU | (ESP)    |
 |---------|---------|----------|
 | IRQ     | D3      | (GPIO0)  |
