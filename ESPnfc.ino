@@ -32,10 +32,9 @@
 
 void unlock();
 void errorLoop();
-void wifiCheck();
 
-const char* ssid     = "SSID";
-const char* password = "PASS";
+const char* ssid     = "prettyFlyForAWifi";
+const char* password = "ThisIsntTheRealPasswordYouSexyHackerYou";
 
 IPAddress doorIP(192,168,13,37);
 
@@ -50,6 +49,9 @@ PN532 nfc(pn532spi);
 
 
 void setup(void) {
+
+  WiFi.persistent(false);
+
   Serial.begin(115200);
   Serial.println("Hello!");
   WiFi.begin(ssid, password);
@@ -60,10 +62,9 @@ void setup(void) {
     Serial.print(".");
   }
   Serial.println();
-  String ipString=String(WiFi.localIP()[0]) + "." + String(WiFi.localIP()[1]) + "." + String(WiFi.localIP()[2]) + "." + String(WiFi.localIP()[3]);
   Serial.print("WiFi up!");
   Serial.print("  IPv4: ");
-  Serial.println(ipString);
+  Serial.println(WiFi.localIP());
 
 
 
@@ -91,15 +92,23 @@ void setup(void) {
 
 
   Serial.println("Waiting for an ISO14443A card");
+  Serial.println("\n-----------\n");
 }
 
 void loop(void) {
 
-	wifiCheck();
-
   boolean success;
   uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
-  uint8_t uidLength;                        // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+
+  #define NUM_ACCEPTED_UIDS 2
+  uint8_t acceptedUIDs[][8] = {
+  							// It is neccessary to account for UID length since a 7 byte ID could contain a 4 byte ID, which would cause a misfire
+  							//  #0	  #1	#2	  #3    #4    #5    #6    #Length
+  							   {0xDE, 0xAD, 0xBE, 0xEF, 0x13, 0x37, 0x42, 7},
+  							   {0xE0, 0x84, 0xDF, 0x16, 0x00, 0x00, 0x00, 4} //fill last 3 bytes with whatever
+  							 };
+
+  uint8_t uidLength;   // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
 
   // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
   // 'uid' will be populated with the UID, and uidLength will indicate
@@ -108,34 +117,56 @@ void loop(void) {
 
   if (success) {
     Serial.println("Found a card!");
-    Serial.print("UID Length: ");Serial.print(uidLength, DEC);Serial.println(" bytes");
+    Serial.print("UID Length: ");
+	Serial.print(uidLength, DEC);
+	Serial.println(" bytes");
     Serial.print("UID Value: ");
     for (uint8_t i=0; i < uidLength; i++)
     {
-      Serial.print(" 0x");Serial.print(uid[i], HEX);
+      Serial.print(" 0x");
+      Serial.print(uid[i], HEX);
     }
     Serial.println("");
 
     // wait until the card is taken away
-    while (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &uid[0], &uidLength)) {}
-    if(uid[0]==0xDE && uid[1]==0xAD && uid[2]==0xBE && uid[3]==0xEF && uid[4]==0x13 && uid[5]==0x37 && uid[6]==0x42)
-    	{
-    	unlock();
-    	delay(3000);
-		}
-  }
-  else
-  {
-    // PN532 probably timed out waiting for a card
-    yield();
-  }
-}
+    while (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &uid[0], &uidLength)) yield(); //let ESPcore handle wifi stuff
 
+    for (int j = 0; j < NUM_ACCEPTED_UIDS; ++j) //check each UID
+    {
+    	uint8_t matchingBytes=0;
+    	Serial.print("Checking for matching bytes with uid #");
+    	Serial.print(j);
+		Serial.print(": ");
+
+		if(uidLength!=acceptedUIDs[j][7]) //length check
+			{
+				Serial.println("UID length mismatch; skipping.");
+				continue;
+			}
+
+        for (uint8_t k=0; k < uidLength; k++)
+        	{
+    		if(uid[k]==acceptedUIDs[j][k]) matchingBytes++;
+        	}
+
+    	if (matchingBytes==uidLength) //is the id matching with an intended length?
+    		{
+    		Serial.print("MATCH! ");
+    		unlock();
+    		break;
+			}
+		else Serial.println("No deal.");
+
+	}
+	Serial.println("\n-----------\n");
+  }
+  else yield(); // PN532 probably timed out waiting for a card.. let's let the ESPcore handle wifi stuff
+}
 
 
 void unlock()
 {
-  Serial.println("sending UDP packet...");
+  Serial.println("Sending UDP packet...");
   // set all bytes in the buffer to 0
   memset(packetBuffer, 0, UDP_PACKET_SIZE);
   // Initialize values needed to form NTP request
@@ -155,34 +186,7 @@ void unlock()
   Udp.endPacket();
 }
 
-void wifiCheck()
-{
-if(WiFi.status() != WL_CONNECTED)
-{
-  int tickCount=0;
-  Serial.println("Wifi dropped. Retry in 30 seconds.");
 
-  delay(30000);
-
-  Serial.println("Connecting");
-
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.println(".");
-      tickCount++;
-      if(tickCount>100)
-      {
-          Serial.println("ded...");
-          errorLoop();
-      }
-   }
-
-   Serial.println("Connected!");
-   //if connectivity has been restored, reset state?
-}
-}
 
 void errorLoop()
 {
