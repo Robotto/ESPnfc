@@ -3,7 +3,7 @@ NodeMCU module (ESP8266) using a PN532 NFC chip to read tags and do a thing with
 
 Follow the install instructions for the PN532/NFC library [here](https://github.com/Seeed-Studio/PN532)
 
-Connects to wifi and waits for an NFC tag with a specific UID. Sends a UDP packet if tag is found.
+Connects to wifi and waits for a NFC tags with specific UIDs. Sends a UDP packet if a matching tag is found.
 
 This specific version is used to unlock a door, hence the unlock() function. (and the IPAddress object called doorIP)
 
