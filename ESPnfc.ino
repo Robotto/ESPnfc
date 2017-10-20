@@ -31,7 +31,6 @@
 #include "PN532.h"
 
 void unlock();
-void errorLoop();
 
 const char* ssid     = "prettyFlyForAWifi";
 const char* password = "ThisIsntTheRealPasswordYouSexyHackerYou";
@@ -41,8 +40,8 @@ IPAddress doorIP(192,168,13,37);
 //UDP stuff:
 WiFiUDP Udp;
 const unsigned int remotePort = 1337;
-const int UDP_PACKET_SIZE = 7;
-byte packetBuffer[ UDP_PACKET_SIZE ]; //buffer to hold and outgoing packets
+const int UDP_PACKET_SIZE = 7; //change to whatever you need.
+byte packetBuffer[ UDP_PACKET_SIZE ]; //buffer to hold outgoing packets
 
 PN532_SPI pn532spi(SPI, D2);
 PN532 nfc(pn532spi);
@@ -65,8 +64,6 @@ void setup(void) {
   Serial.print("WiFi up!");
   Serial.print("  IPv4: ");
   Serial.println(WiFi.localIP());
-
-
 
   nfc.begin();
 
@@ -98,6 +95,7 @@ void setup(void) {
 void loop(void) {
 
   boolean success;
+ 
   uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
 
   #define NUM_ACCEPTED_UIDS 2
@@ -118,9 +116,10 @@ void loop(void) {
   if (success) {
     Serial.println("Found a card!");
     Serial.print("UID Length: ");
-	Serial.print(uidLength, DEC);
-	Serial.println(" bytes");
+	  Serial.print(uidLength, DEC);
+	  Serial.println(" bytes");
     Serial.print("UID Value: ");
+    
     for (uint8_t i=0; i < uidLength; i++)
     {
       Serial.print(" 0x");
@@ -169,8 +168,8 @@ void unlock()
   Serial.println("Sending UDP packet...");
   // set all bytes in the buffer to 0
   memset(packetBuffer, 0, UDP_PACKET_SIZE);
-  // Initialize values needed to form NTP request
-  // (see URL above for details on the packets)
+ 
+ //handcrafting an UDP packet:
   packetBuffer[0]='H';
   packetBuffer[1]='E';
   packetBuffer[2]='L';
@@ -179,25 +178,7 @@ void unlock()
   packetBuffer[5]='!';
   packetBuffer[6]='\n';
 
-  // all NTP fields have been given values, now
-  // you can send a packet requesting a timestamp:
   Udp.beginPacket(doorIP, remotePort); //NTP requests are to port 123
   Udp.write(packetBuffer, UDP_PACKET_SIZE);
   Udp.endPacket();
-}
-
-
-
-void errorLoop()
-{
-  unsigned long currentEpoch,epochAtError=millis();
-  unsigned long lastmillis=0;
-
-  while(1)
-  {
-    while(millis()<lastmillis+1000) yield(); //WAIT FOR ABOUT A SECOND
-    currentEpoch+=((millis()-lastmillis)/1000); //add  a second or more to the current epoch
-    lastmillis=millis();
-    if (currentEpoch>epochAtError+300) ESP.reset(); //reset after 5 minutes
-  }
 }
