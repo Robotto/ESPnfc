@@ -11,33 +11,32 @@
 	Runs on an ESP8266 (nodeMCU v0.9) connected to an adafruit NFC (PN532) shield
 
 	HW setup:
-	NFC 	NodeMCU (ESP):
-	IRQ 	D3 		(GPIO0)
-	RST 	D4 		(GPIO2)
-	SCK 	D5 		(GPIO14)
-	MISO 	D6 		(GPIO12)
-	MOSI 	D7 		(GPIO13)
-	SDA(SS)	D2		(GPIO4)
-
+  NFC 	NodeMCU (ESP):
+  SS (CS) D2    (GPIO4)
+	IRQ 	  D3 		(GPIO0)
+	RST 	  D4 		(GPIO2)
+	SCK 	  D5 		(GPIO14)
+	MISO 	  D6 		(GPIO12)
+	MOSI 	  D7 		(GPIO13)
+  
+  Jumpers: SEL0=closed , SEL1=closed (set to SPI mode)
 */
 /**************************************************************************/
 
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <WiFiClient.h>
+#include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager
+#include <ArduinoOTA.h>
 
 #include <SPI.h>
 #include <PN532_SPI.h>
-#include "PN532.h"
+#include <PN532.h>
 
 void unlock();
-void errorLoop();
 
-const char* ssid     = "prettyFlyForAWifi";
-const char* password = "ThisIsntTheRealPasswordYouSexyHackerYou";
-
-IPAddress doorIP(192,168,13,37);
-
+IPAddress doorIP(192,168,13,142);
+//char* doorAddress = "door.local";
 //UDP stuff:
 WiFiUDP Udp;
 const unsigned int remotePort = 1337;
@@ -47,24 +46,76 @@ byte packetBuffer[ UDP_PACKET_SIZE ]; //buffer to hold and outgoing packets
 PN532_SPI pn532spi(SPI, D2);
 PN532 nfc(pn532spi);
 
+void configModeCallback (WiFiManager *myWiFiManager) {
+  Serial.println("Entered config mode");
+  Serial.println("AP: " + myWiFiManager->getConfigPortalSSID());
+  Serial.println("IP: " + WiFi.softAPIP().toString());
+}
+
 
 void setup(void) {
 
-  WiFi.persistent(false);
+  WiFi.hostname("ESPNFC");
+  
+  //WiFi.persistent(false);
+  //WiFi.mode(WIFI_STA); //prevent random APs from forming?!
 
   Serial.begin(115200);
   Serial.println("Hello!");
-  WiFi.begin(ssid, password);
-
-  delay(500);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  
+  //WiFiManager
+  //Local intialization. Once its business is done, there is no need to keep it around
+  WiFiManager wifiManager;
+  Serial.println("Connecting to wifi..");
+  wifiManager.setAPCallback(configModeCallback); //set callback that gets called when connecting to previous WiFi fails, and enters Access Point mode
+  wifiManager.setConnectTimeout(30); //try to connect to known wifis for a long time before defaulting to AP mode
+  
+  //fetches ssid and pass and tries to connect
+  //if it does not connect it starts an access point with the specified name
+  //here  "ESPNFC"
+  //and goes into a blocking loop awaiting configuration
+  if (!wifiManager.autoConnect("ESPNFC")) {
+    Serial.println("failed to connect and hit timeout");
+    ESP.restart(); //reset and try again, or maybe put it to deep sleep 
   }
-  Serial.println();
-  Serial.print("WiFi up!");
-  Serial.print("  IPv4: ");
-  Serial.println(WiFi.localIP());
+
+  //OTA:
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("ESPNFC");
+  // No authentication by default
+  ArduinoOTA.setPassword((const char *)"1804020311");
+  //ArduinoOTA.setPasswordHash((const char *)"77ca9ed101ac99e43b6842c169c20fda");
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("OTA START!");
+    delay(500);
+  });
+
+  ArduinoOTA.onEnd([]() {
+  	Serial.println("OTA End.. brace for reset");
+  	ESP.restart();
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    String buffer=String("Error[") + String(error) + String("]: ");
+    if (error == OTA_AUTH_ERROR) buffer+=String("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) buffer+=String("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) buffer+=String("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) buffer+=String("Receive Failed");
+    else if (error == OTA_END_ERROR) buffer+=String("End Failed");
+    
+    Serial.println(buffer);
+  });
+
+  ArduinoOTA.begin();
+
+
 
 
 
@@ -97,18 +148,23 @@ void setup(void) {
 
 void loop(void) {
 
-  boolean success;
-  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
-
-  #define NUM_ACCEPTED_UIDS 2
-  uint8_t acceptedUIDs[][8] = {
+  
+  #define NUM_ACCEPTED_UIDS 4 //<-----------------CHANGE THIS IF ADDING CARDS!!
+  const uint8_t acceptedUIDs[NUM_ACCEPTED_UIDS][8] = {
   							// It is neccessary to account for UID length since a 7 byte ID could contain a 4 byte ID, which would cause a misfire
   							//  #0	  #1	#2	  #3    #4    #5    #6    #Length
-  							   {0xDE, 0xAD, 0xBE, 0xEF, 0x13, 0x37, 0x42, 7},
-  							   {0xE0, 0x84, 0xDF, 0x16, 0x00, 0x00, 0x00, 4} //fill last 3 bytes with whatever
-  							 };
+  							   {0x04, 0x04, 0x10, 0x12, 0xFF, 0x38, 0x85, 7},//LektorP
+                   //{0x04, 0x97, 0x03, 0x12, 0xFF, 0x38, 0x84, 7},//Robotto old
+                   {0x7A, 0x3F, 0x54, 0xA2, 0x00, 0x00, 0x00, 4}, //robotto NEW 
+  							   //{0xE0, 0x84, 0xDF, 0x16, 0x00, 0x00, 0x00, 4}, //DjAlligatorFace
+  							   {0x44, 0x0F, 0x31, 0xC6, 0x00, 0x00, 0x00, 4}, //BAK
+  							   {0xEA, 0xD6, 0x54, 0xA2, 0x00, 0x00, 0x00, 4} //Nikolaj
+                 };
+                 
 
+  boolean success;
   uint8_t uidLength;   // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
 
   // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
   // 'uid' will be populated with the UID, and uidLength will indicate
@@ -118,8 +174,8 @@ void loop(void) {
   if (success) {
     Serial.println("Found a card!");
     Serial.print("UID Length: ");
-	Serial.print(uidLength, DEC);
-	Serial.println(" bytes");
+	  Serial.print(uidLength, DEC);
+	  Serial.println(" bytes");
     Serial.print("UID Value: ");
     for (uint8_t i=0; i < uidLength; i++)
     {
@@ -136,7 +192,7 @@ void loop(void) {
     	uint8_t matchingBytes=0;
     	Serial.print("Checking for matching bytes with uid #");
     	Serial.print(j);
-		Serial.print(": ");
+		  Serial.print(": ");
 
 		if(uidLength!=acceptedUIDs[j][7]) //length check
 			{
@@ -153,7 +209,8 @@ void loop(void) {
     		{
     		Serial.print("MATCH! ");
     		unlock();
-    		break;
+    		delay(500); //avoid UDP flooding
+    		break; //would you check the rest of the UIDs?
 			}
 		else Serial.println("No deal.");
 
@@ -169,35 +226,19 @@ void unlock()
   Serial.println("Sending UDP packet...");
   // set all bytes in the buffer to 0
   memset(packetBuffer, 0, UDP_PACKET_SIZE);
-  // Initialize values needed to form NTP request
-  // (see URL above for details on the packets)
-  packetBuffer[0]='H';
+  
+  packetBuffer[0]='S';
   packetBuffer[1]='E';
-  packetBuffer[2]='L';
-  packetBuffer[3]='L';
-  packetBuffer[4]='O';
-  packetBuffer[5]='!';
+  packetBuffer[2]='S';
+  packetBuffer[3]='A';
+  packetBuffer[4]='M';
+  packetBuffer[5]='E';
   packetBuffer[6]='\n';
 
-  // all NTP fields have been given values, now
-  // you can send a packet requesting a timestamp:
-  Udp.beginPacket(doorIP, remotePort); //NTP requests are to port 123
+  Udp.beginPacket(doorIP, remotePort);
+  //Udp.beginPacket(doorAddress,remotePort);
   Udp.write(packetBuffer, UDP_PACKET_SIZE);
   Udp.endPacket();
 }
 
 
-
-void errorLoop()
-{
-  unsigned long currentEpoch,epochAtError=millis();
-  unsigned long lastmillis=0;
-
-  while(1)
-  {
-    while(millis()<lastmillis+1000) yield(); //WAIT FOR ABOUT A SECOND
-    currentEpoch+=((millis()-lastmillis)/1000); //add  a second or more to the current epoch
-    lastmillis=millis();
-    if (currentEpoch>epochAtError+300) ESP.reset(); //reset after 5 minutes
-  }
-}
