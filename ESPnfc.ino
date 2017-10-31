@@ -33,21 +33,15 @@
 #include <PN532_SPI.h>
 #include <PN532.h>
 
+#include <ESP8266mDNS.h>
+
 void unlock();
-<<<<<<< HEAD
-=======
 
-const char* ssid     = "prettyFlyForAWifi";
-const char* password = "ThisIsntTheRealPasswordYouSexyHackerYou";
-
-IPAddress doorIP(192,168,13,37);
->>>>>>> a609da7a84bf1ddc4c49298f542892da0fc1c44f
-
-IPAddress doorIP(192,168,13,142);
+//IPAddress doorIP(192,168,0,111);
 //char* doorAddress = "door.local";
 //UDP stuff:
 WiFiUDP Udp;
-const unsigned int remotePort = 1337;
+//const unsigned int remotePort = 1337;
 const int UDP_PACKET_SIZE = 7; //change to whatever you need.
 byte packetBuffer[ UDP_PACKET_SIZE ]; //buffer to hold outgoing packets
 
@@ -123,8 +117,6 @@ void setup(void) {
 
   ArduinoOTA.begin();
 
-
-
   nfc.begin();
 
   uint32_t versiondata = nfc.getFirmwareVersion();
@@ -154,18 +146,9 @@ void setup(void) {
 
 void loop(void) {
 
-<<<<<<< HEAD
   
   #define NUM_ACCEPTED_UIDS 4 //<-----------------CHANGE THIS IF ADDING CARDS!!
   const uint8_t acceptedUIDs[NUM_ACCEPTED_UIDS][8] = {
-=======
-  boolean success;
- 
-  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
-
-  #define NUM_ACCEPTED_UIDS 2
-  uint8_t acceptedUIDs[][8] = {
->>>>>>> a609da7a84bf1ddc4c49298f542892da0fc1c44f
   							// It is neccessary to account for UID length since a 7 byte ID could contain a 4 byte ID, which would cause a misfire
   							//  #0	  #1	#2	  #3    #4    #5    #6    #Length
   							   {0x04, 0x04, 0x10, 0x12, 0xFF, 0x38, 0x85, 7},//LektorP
@@ -239,17 +222,37 @@ void loop(void) {
 
 void unlock()
 {
+
+  Serial.println("Sending mDNS query");
+  //BUG: only services named "esp" are found... https://github.com/esp8266/Arduino/issues/2151
+  int n = MDNS.queryService("esp", "udp"); // Send out query for esp tcp services
+  Serial.println("mDNS query done");
+  if (n == 0) {
+    Serial.println("no services found doing nothing..");
+    return;
+  }
+  else {
+    Serial.print(n);
+    Serial.println(" service(s) found");
+    for (int i = 0; i < n; ++i) {
+      // Print details for each service found
+      Serial.print(i + 1);
+      Serial.print(": ");
+      Serial.print(MDNS.hostname(i));
+      Serial.print(" (");
+      Serial.print(MDNS.IP(i));
+      Serial.print(":");
+      Serial.print(MDNS.port(i));
+      Serial.println(")");
+
+
+  //workaround:
+  if(MDNS.hostname(i)=="esprelay"){
   Serial.println("Sending UDP packet...");
   // set all bytes in the buffer to 0
   memset(packetBuffer, 0, UDP_PACKET_SIZE);
-<<<<<<< HEAD
   
   packetBuffer[0]='S';
-=======
- 
- //handcrafting an UDP packet:
-  packetBuffer[0]='H';
->>>>>>> a609da7a84bf1ddc4c49298f542892da0fc1c44f
   packetBuffer[1]='E';
   packetBuffer[2]='S';
   packetBuffer[3]='A';
@@ -257,17 +260,15 @@ void unlock()
   packetBuffer[5]='E';
   packetBuffer[6]='\n';
 
-<<<<<<< HEAD
-  Udp.beginPacket(doorIP, remotePort);
+  //Udp.beginPacket(doorIP, remotePort);
+  Udp.beginPacket(MDNS.IP(i), MDNS.port(i));
+  
   //Udp.beginPacket(doorAddress,remotePort);
   Udp.write(packetBuffer, UDP_PACKET_SIZE);
   Udp.endPacket();
+  }
+  }
+}
 }
 
 
-=======
-  Udp.beginPacket(doorIP, remotePort); //NTP requests are to port 123
-  Udp.write(packetBuffer, UDP_PACKET_SIZE);
-  Udp.endPacket();
-}
->>>>>>> a609da7a84bf1ddc4c49298f542892da0fc1c44f
