@@ -11,6 +11,9 @@ To enable debug message, define DEBUG in PN532/PN532_debug.h, which is part of t
 
 Runs on an ESP8266 (nodeMCU v0.9) connected to an adafruit NFC (PN532) shield
 
+
+Sort of a counterpart to this: https://github.com/Robotto/UDPrx_relay
+
 HW setup:
 
 | NFC     | NodeMCU | (ESP)    |
