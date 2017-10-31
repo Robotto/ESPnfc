@@ -15,9 +15,9 @@ HW setup:
 
 | NFC     | NodeMCU | (ESP)    |
 |---------|---------|----------|
+| SS (CS) | D2      | (GPIO4)  |
 | IRQ     | D3      | (GPIO0)  |
 | RST     | D4      | (GPIO2)  |
 | SCK     | D5      | (GPIO14) |
 | MISO    | D6      | (GPIO12) |
 | MOSI    | D7      | (GPIO13) |
-| SDA(SS) | D2      | (GPIO4)  |
