@@ -37,8 +37,6 @@
 
 void unlock();
 
-//IPAddress doorIP(192,168,0,111);
-//char* doorAddress = "door.local";
 //UDP stuff:
 WiFiUDP Udp;
 //const unsigned int remotePort = 1337;
