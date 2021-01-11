@@ -24,3 +24,5 @@ HW setup:
 | SCK     | D5      | (GPIO14) |
 | MISO    | D6      | (GPIO12) |
 | MOSI    | D7      | (GPIO13) |
+
+I'm typing words with my hands.
